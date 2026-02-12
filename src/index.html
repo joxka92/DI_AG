@@ -1,13 +1,315 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="es">
 <head>
-  <meta charset="utf-8">
-  <title>DIAG</title>
-  <base href="/">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta charset="UTF-8" />
+  <title>Para ti, mi amor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: radial-gradient(circle at top, #0f172a, #020617);
+      height: 100vh;
+      overflow: hidden;
+      font-family: "Segoe UI", sans-serif;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      display: block;
+    }
+
+    .center-btn {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      padding: 1rem 3rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #ec4899, #f43f5e);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+      transition: transform 0.2s ease, opacity 0.4s ease;
+      z-index: 10;
+    }
+
+    .center-btn.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
 </head>
 <body>
-  <app-root></app-root>
+  <div id="container">
+    <canvas id="stars"></canvas>
+    <button id="btn" class="center-btn">Presióname</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("stars");
+    const ctx = canvas.getContext("2d");
+    const btn = document.getElementById("btn");
+
+    let w, h;
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    // MUCHAS MÁS PARTÍCULAS
+    const NUM_PARTICLES = 3000;
+    const particles = [];
+    const words = [
+      "Te amo",
+      "Mi amor",
+      "Mi chula",
+      "Gracias por ser parte de mi vida"
+    ];
+    const wordDuration = 2600;
+    let mode = "free";
+    let formingStartTime = null;
+    let targets = [];
+
+    function randomStarColor() {
+      const colors = ["#ffffff", "#f8fafc", "#e2e8f0", "#bae6fd"];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    function createParticles() {
+      particles.length = 0;
+      for (let i = 0; i < NUM_PARTICLES; i++) {
+        particles.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          vx: (Math.random() - 0.5) * 0.25,
+          vy: (Math.random() - 0.5) * 0.25,
+          size: Math.random() * 0.8 + 0.2, // MÁS PEQUEÑAS
+          color: randomStarColor()
+        });
+      }
+    }
+
+    createParticles();
+
+    function drawBackground() {
+      const grd = ctx.createRadialGradient(
+        w / 2, h / 3, 0,
+        w / 2, h / 2, Math.max(w, h)
+      );
+      grd.addColorStop(0, "#0f172a");
+      grd.addColorStop(1, "#000000");
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    function updateParticlesFree() {
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.x < 0) p.x = w;
+        if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h;
+        if (p.y > h) p.y = 0;
+      }
+    }
+
+    function updateParticlesForming(progress) {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const t = targets[i % targets.length];
+        const ease = 1 - Math.pow(1 - progress, 3);
+
+        p.x += (t.x - p.x) * ease * 0.07;
+        p.y += (t.y - p.y) * ease * 0.07;
+        p.color = t.color;
+      }
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        ctx.beginPath();
+        ctx.fillStyle = p.color;
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+      const words = text.split(" ");
+      let line = "";
+      let yy = y;
+
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + " ";
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth) {
+          ctx.fillText(line, x, yy);
+          line = words[n] + " ";
+          yy += lineHeight * 1.2;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, x, yy);
+    }
+
+    function generateTargetsForWord(text) {
+      const offCanvas = document.createElement("canvas");
+      const offCtx = offCanvas.getContext("2d");
+      const fontSize = Math.min(w * 0.12, 120);
+
+      offCanvas.width = w;
+      offCanvas.height = h;
+
+      offCtx.clearRect(0, 0, w, h);
+      offCtx.fillStyle = "rgba(255,255,255,1)";
+      offCtx.textAlign = "center";
+      offCtx.textBaseline = "middle";
+      offCtx.font = `bold ${fontSize}px Segoe UI`;
+
+      wrapText(offCtx, text, w / 2, h / 2, w * 0.8, fontSize);
+
+      const imgData = offCtx.getImageData(0, 0, w, h).data;
+      const pts = [];
+      const step = 3; // MÁS FINO
+
+      for (let y = 0; y < h; y += step) {
+        for (let x = 0; x < w; x += step) {
+          const idx = (y * w + x) * 4;
+          if (imgData[idx + 3] > 128) pts.push({ x, y });
+        }
+      }
+
+      const maxTargets = NUM_PARTICLES;
+      const selected = [];
+      const len = pts.length;
+      const ratio = Math.max(len / maxTargets, 1);
+
+      for (let i = 0; i < len; i += ratio) {
+        selected.push(pts[Math.floor(i)]);
+      }
+
+      const colors = ["#ff8fa3", "#ff4d6d", "#ffb3c6", "#ff5d8f"];
+      targets = selected.map(p => ({
+        x: p.x,
+        y: p.y,
+        color: colors[Math.floor(Math.random() * colors.length)]
+      }));
+    }
+
+    function generateHeartAndNames() {
+      const offCanvas = document.createElement("canvas");
+      const offCtx = offCanvas.getContext("2d");
+
+      offCanvas.width = w;
+      offCanvas.height = h;
+
+      offCtx.clearRect(0, 0, w, h);
+
+      const heartSize = Math.min(w, h) * 0.25;
+
+      offCtx.fillStyle = "rgba(255,255,255,1)";
+      offCtx.textAlign = "center";
+      offCtx.textBaseline = "middle";
+      offCtx.font = `bold ${heartSize}px Segoe UI`;
+      offCtx.fillText("❤️", w / 2, h / 2 - heartSize * 0.2);
+
+      offCtx.font = `bold ${heartSize * 0.35}px Segoe UI`;
+      offCtx.fillText("Ibeth y Agus", w / 2, h / 2 + heartSize * 0.5);
+
+      const imgData = offCtx.getImageData(0, 0, w, h).data;
+      const pts = [];
+      const step = 3;
+
+      for (let y = 0; y < h; y += step) {
+        for (let x = 0; x < w; x += step) {
+          const idx = (y * w + x) * 4;
+          if (imgData[idx + 3] > 128) pts.push({ x, y });
+        }
+      }
+
+      const maxTargets = NUM_PARTICLES;
+      const selected = [];
+      const len = pts.length;
+      const ratio = Math.max(len / maxTargets, 1);
+
+      for (let i = 0; i < len; i += ratio) {
+        selected.push(pts[Math.floor(i)]);
+      }
+
+      const colors = ["#ff8fa3", "#ff4d6d", "#ffb3c6", "#ff5d8f"];
+      targets = selected.map(p => ({
+        x: p.x,
+        y: p.y,
+        color: colors[Math.floor(Math.random() * colors.length)]
+      }));
+    }
+
+    function animate(timestamp) {
+      ctx.clearRect(0, 0, w, h);
+      drawBackground();
+
+      if (mode === "free") updateParticlesFree();
+      else if (mode === "forming") {
+        if (!formingStartTime) formingStartTime = timestamp;
+        const elapsed = timestamp - formingStartTime;
+        const progress = Math.min(elapsed / 1200, 1);
+        updateParticlesForming(progress);
+      }
+
+      drawParticles();
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+
+    function playSequence() {
+      let index = 0;
+
+      function next() {
+        if (index < words.length) {
+          generateTargetsForWord(words[index]);
+          mode = "forming";
+          formingStartTime = null;
+
+          setTimeout(() => {
+            mode = "free";
+            index++;
+            setTimeout(next, 400);
+          }, wordDuration);
+        } else {
+          setTimeout(() => {
+            generateHeartAndNames();
+            mode = "forming";
+            formingStartTime = null;
+          }, 800);
+        }
+      }
+
+      next();
+    }
+
+    btn.addEventListener("click", () => {
+      btn.classList.add("hidden");
+      playSequence();
+    });
+  </script>
 </body>
 </html>
